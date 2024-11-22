@@ -118,10 +118,8 @@ if __name__ == "__main__":
     work = 'SGD_COCO_lr_001_lrp_01_bs16_5'
     args.save_dir = './checkpoint/' + args.data + '/' +args.model_name+'/' + work
 
-    args.evaluate = {1: False, 2: True}[1]
     if args.evaluate == True:
         args.image_size = 576
-        args.resume = './checkpoint/COCO2014/checkpoint_best.pth'
     else:
         args.image_size = 448
         args.resume=''
