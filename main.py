@@ -37,7 +37,7 @@ parser.add_argument('--word_feature_path', default='./wordfeature/', type=str, h
 
 ''' Train setting '''
 parser.add_argument('--data', metavar='NAME', help='dataset name (e.g. COCO2014, VOC2007, VOC2012, VG_100K, CoCoDataset, nuswide, mirflickr25k')
-parser.add_argument('--model_name', type=str, default='ADD_GCN')
+parser.add_argument('--model_name', type=str, default='MLGCN')
 parser.add_argument('--save_dir', default='./checkpoint/COCO2014/', type=str, help='save path')
 
 ''' Val or Tese setting '''
@@ -86,11 +86,7 @@ def main(args):
 if __name__ == "__main__":
     args = parser.parse_args()
     args.data_root_dir='dataset'
-    model_name = {1:'MLGCN'}
-    dataset_name = {1:'COCO2014', 2:'VOC2007', 3:'VOC2012'}
     backbone = {1:'ResNet101'}
-    args.model_name = model_name[1]  # model name
-    args.data = dataset_name[2]
     args.backbone = backbone[1]
     os.environ['CUDA_VISIBLE_DEVICES'] = "0"
     gpu_num = len(os.environ['CUDA_VISIBLE_DEVICES'].split(','))
