@@ -40,31 +40,15 @@ parser.add_argument('--data', metavar='NAME', help='dataset name (e.g. COCO2014,
 parser.add_argument('--model_name', type=str, default='GNN')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true', help='evaluate model on validation set')
 
-def calculate_cooccurrence_matrix(labels_list, num_classes):
-
-    labels_list = np.array(labels_list)
-
-    # Initialize co-occurrence matrix
-    cooccurrence_matrix = np.zeros((num_classes, num_classes), dtype=int)
-    
-    # Count co-occurrences
-    for labels in labels_list:
-        # Convert labels to array if it's not already
-        labels = np.array(labels)
-        
-        # For each label in the current sample
-        for i in labels:
-            for j in labels:
-                cooccurrence_matrix[i, j] += 1
-    
-    return cooccurrence_matrix
-
 
 def main(args):
 
     train_loader, val_loader, num_classes = make_data_loader(args, is_train=False)
 
     num_classes = 20
+
+    tau_threshold = 0.3
+    p = 0.2
 
     data = next(iter(val_loader))
 
@@ -89,18 +73,43 @@ def main(args):
          # For each label in the current sample
         for i in indices_list:
             for j in indices_list:
-                if i != j:
-                    cooccurrence_matrix[i, j] += 1
+                # if i != j:
+                cooccurrence_matrix[i, j] += 1
 
     prob_matrix = np.zeros_like(cooccurrence_matrix, dtype=float)
     # Calculate conditional probabilities
-    for i in range(len(label_frequencies)):
+    for i in range(num_classes):
         if label_frequencies[i] > 0:  # Avoid division by zero
+            # Al hacerlo asi los valores importantes lo tienen las columns
             prob_matrix[i, :] = cooccurrence_matrix[i, :] / label_frequencies[i]
 
-    cooccurrence_df = pd.DataFrame(cooccurrence_matrix)
+    # cooccurrence_df = pd.DataFrame(cooccurrence_matrix)
     prob_df = pd.DataFrame(prob_matrix, index=VOC_LABELS, columns=VOC_LABELS)
 
+    # Correlation matrix binarization
+    A = (prob_matrix > tau_threshold).astype('float32')
+    A_df = pd.DataFrame(A, index=VOC_LABELS, columns=VOC_LABELS)
+
+    A_prime = np.zeros_like(A, dtype=float)
+
+    # Calculate off-diagonal elements
+    for i in range(num_classes):
+        for j in range(num_classes):
+            if i != j:
+                # Sum of all connections from i to other nodes (excluding j)
+                sum_connections = sum(A[i, k] for k in range(num_classes) if k != i)
+                
+                # Apply the formula for off-diagonal elements
+                if sum_connections > 0:  # Avoid division by zero
+                    A_prime[i, j] = p * A[i, j] / sum_connections
+                else:
+                    A_prime[i, j] = 0
+            else:
+                # Diagonal elements are 1-p
+                A_prime[i, j] = 1 - p
+
+
+    A_prime_df = pd.DataFrame(A_prime, index=VOC_LABELS, columns=VOC_LABELS)
     print("hola")
 
 
