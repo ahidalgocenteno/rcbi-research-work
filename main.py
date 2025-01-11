@@ -115,7 +115,7 @@ if __name__ == "__main__":
         args.weight_decay = 1e-4
         args.epoch_step = [10, 20]
 
-    work = 'SGD_COCO_lr_001_lrp_01_bs16_5'
+    work = 'segundo_entreno'
     args.save_dir = './checkpoint/' + args.data + '/' +args.model_name+'/' + work
 
     if args.evaluate == True:
