@@ -16,8 +16,8 @@ parser = argparse.ArgumentParser(description='PyTorch Training for Multi-label I
 parser.add_argument('--data_root_dir', default='./dataset/', type=str, help='save path')
 parser.add_argument('--image-size', '-i', default=448, type=int)
 parser.add_argument('--epochs', default=50, type=int)
+parser.add_argument('--gpu', default=0, type=int)
 parser.add_argument('--epoch_step', default=[30, 40], type=int, nargs='+', help='number of epochs to change learning rate')  
-parser.add_argument('-b', '--batch-size', default=16, type=int)
 parser.add_argument('-j', '--num_workers', default=4, type=int, metavar='INT', help='number of data loading workers (default: 4)')
 parser.add_argument('--display_interval', default=200, type=int, metavar='M', help='display_interval')
 parser.add_argument('--lr', '--learning-rate', default=0.05, type=float)
@@ -27,6 +27,7 @@ parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float, metavar=
 parser.add_argument('--max_clip_grad_norm', default=10.0, type=float, metavar='M', help='max_clip_grad_norm')
 parser.add_argument('--seed', default=1, type=int, help='seed for initializing training. ')
 parser.add_argument('--num_classes', default=20, type=int, help='the number of the classses')
+parser.add_argument('--batch-size', default=16, type=int, help='The batch size used')
 parser.add_argument('-o', '--optimizer', default='SGD', type=str, help="The optimizer can be only chosen from {\'SGD\', \'Adam\', \'AdamW\'} for now. More may be implemented later")
 parser.add_argument('-backbone','--backbone', default='ResNet101', type=str, help='ResNet101, resnet101, ResNeXt50-swsl, ResNeXt50_32x4d (default: ResNet101)')
 # parser.add_argument('--local_rank', default=0, type=int, help='node rank for distributed training')
@@ -76,10 +77,12 @@ def main(args):
 
     criterion = torch.nn.MultiLabelSoftMarginLoss()
 
+    device = "cuda:" + str(args.gpu)
+
     trainer = Trainer(model, criterion, train_loader, val_loader, args)
 
     if is_train:
-        trainer.train()
+        trainer.train(device)
     else:
         trainer.validate()
 
@@ -88,13 +91,14 @@ if __name__ == "__main__":
     args.data_root_dir='dataset'
     backbone = {1:'ResNet101'}
     args.backbone = backbone[1]
-    os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+    torch.cuda.set_device(args.gpu)
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
+
     gpu_num = len(os.environ['CUDA_VISIBLE_DEVICES'].split(','))
     args.seed = 1 # seed
     args.epochs = 50 #
     args.optimizer = {1:'SGD', 2: 'Adam', 3:'AdamW'}[1]
     args.display_interval = 1000
-    args.batch_size = gpu_num * 16
     args.warmup_scheduler = {1: False, 2: True}[2]
     args.warmup_epoch = 0 if args.warmup_scheduler == False else args.warmup_epoch
     args.word_feature_path = os.path.join(os.getcwd(), 'wordfeature')
@@ -123,8 +127,6 @@ if __name__ == "__main__":
     else:
         args.image_size = 448
         args.resume=''
-
-    args.batch_size = 16
 
 
     main(args)

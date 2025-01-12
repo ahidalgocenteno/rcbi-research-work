@@ -27,7 +27,7 @@ urls2012 = {
     # 'trainval_2012': 'http://host.robots.ox.ac.uk/pascal/VOC/voc2012/VOCtrainval_06-Nov-2012.tar',
     'trainval_2012': 'http://host.robots.ox.ac.uk/pascal/VOC/voc2012/VOCtrainval_11-May-2012.tar',
     # 'test_images_2012': 'http://host.robots.ox.ac.uk/pascal/VOC/voc2012/VOCtest_06-Nov-2012.tar',
-    'test_images_2012': 'http://pjreddie.com/media/files/VOC2012test.tar',
+    'test_images_2012': 'https://data.brainchip.com/dataset-mirror/voc/VOC2012test.tar',
     # 'test_anno_2012': 'http://host.robots.ox.ac.uk/pascal/VOC/voc2012/VOCtestnoimgs_06-Nov-2012.tar',
 }
 

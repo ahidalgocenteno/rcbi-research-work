@@ -57,7 +57,7 @@ class Trainer(object):
         self.meters['batch_time'] = AverageMeter('batch_time')
         self.meters['data_time'] = AverageMeter('data_time')
 
-    def initialization(self, is_train=False):
+    def initialization(self, is_train=False, device='cuda:0'):
         """ initialize self.model and self.criterion here """
 
         # Bulid Logger
@@ -88,8 +88,8 @@ class Trainer(object):
         
         if torch.cuda.is_available():
             cudnn.benchmark = True
-            self.model = torch.nn.DataParallel(self.model).cuda()
-            self.criterion = self.criterion.cuda()
+            self.model = torch.nn.DataParallel(self.model, device_ids=[1]).to(device)
+            self.criterion = self.criterion.to(device)
             self.model.eval()
             torch.cuda.empty_cache()
             self.val_loader.pin_memory = True
@@ -195,8 +195,8 @@ class Trainer(object):
 
         return outputs
 
-    def train(self):
-        self.initialization(is_train=True)
+    def train(self, device='cuda:0'):
+        self.initialization(True, device)
         torch.cuda.empty_cache()
         for epoch in range(self.start_epoch, self.end_epoch):
 
