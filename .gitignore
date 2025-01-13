@@ -163,5 +163,4 @@ cython_debug/
 /env
 /pyvenv.cfg
 /dataset
-/checkpoint
 .vscode
