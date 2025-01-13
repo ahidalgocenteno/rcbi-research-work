@@ -441,6 +441,116 @@ class MLGCNRealTime(nn.Module):
                 ]
 
 
+class MLGCNDropout(nn.Module):
+    def __init__(self, model, num_classes, word_feature_path, dropout_p=0.5, test_efficient=False):
+        super(MLGCNDropout, self).__init__()
+
+        # Choose feature extractor
+        if test_efficient:
+            model = timm.create_model('mobilenetv3_large_100', pretrained=True)
+            self.features = nn.Sequential(*list(model.children())[:-2])
+            self.image_feature_dim = 1280  # Mobilenetv3 output dimension
+        else:
+            self.features = nn.Sequential(
+                model.conv1,
+                model.bn1,
+                model.relu,
+                model.maxpool,
+                model.layer1,
+                model.layer2,
+                model.layer3,
+                model.layer4,
+            )
+            self.image_feature_dim = 2048  # ResNet output dimension
+
+        self.num_classes = num_classes
+        self.word_feature_path = word_feature_path
+        self.pooling = nn.AdaptiveMaxPool2d((1, 1))
+
+        # word2vector
+        if self.num_classes == 80:
+            self.word_features = os.path.join(self.word_feature_path, 'coco_glove_word2vec.pkl')
+            self.adj_file = os.path.join(self.word_feature_path, 'coco_adj.pkl')
+        elif self.num_classes == 81:
+            self.word_features = os.path.join(self.word_feature_path, 'nuswide_glove_word2vec.npy')
+            self.adj_file = os.path.join(self.word_feature_path, 'nus_adj.pkl')
+            self.t = 0.4
+        else:
+            self.word_features = os.path.join(self.word_feature_path, 'voc_glove_word2vec.pkl')
+            self.adj_file = os.path.join(self.word_feature_path, 'voc_adj.pkl')
+            self.t = 0.4
+
+        self.word_feature_dim = 300
+        self.gcn_hidden_dim = 1024
+        self.gcn_output_dim = 2048
+
+        # Adjust feature extractor output to match GCN 
+        if self.image_feature_dim != self.gcn_output_dim:
+            self.feature_transform = nn.Linear(self.image_feature_dim, self.gcn_output_dim)
+
+        # Load word features
+        with open(self.word_features, 'rb') as point:
+            print(f'Graph input: loaded from {self.word_features}')
+            import pickle
+            word_features = pickle.load(point)
+        self.word_features = torch.from_numpy(word_features).float()
+
+        # Graph Convolutional layers
+        self.gc1 = GraphConvolution(self.word_feature_dim, self.gcn_hidden_dim)
+        self.dropout1 = nn.Dropout(p=dropout_p)
+        self.gc2 = GraphConvolution(self.gcn_hidden_dim, self.gcn_output_dim)
+        self.dropout2 = nn.Dropout(p=dropout_p)
+
+        # Activation
+        self.relu = nn.LeakyReLU(0.2)
+
+        # Adjacency matrix
+        _adj = gen_A(num_classes, t=0.4, adj_file=self.adj_file)
+        self.A = nn.Parameter(torch.from_numpy(_adj).float())
+        self.adj = gen_adj(self.A)
+
+    def forward_feature(self, x):
+        x = self.features(x)  # Feature extractor
+        x = self.pooling(x)  # Adaptive pooling
+        x = x.view(x.size(0), -1)  # Flatten
+        if hasattr(self, 'feature_transform'):
+            x = self.feature_transform(x)  # Transform feature dimension
+        return x
+
+    def forward(self, x):
+        # Extract image features
+        feature = self.forward_feature(x)
+
+        # Prepare graph input
+        inp = self.word_features.cuda().detach()
+        adj = self.adj.cuda().detach()
+
+        # Pass through GCN layers
+        x = self.gc1(inp, adj)
+        x = self.relu(x)
+        x = self.dropout1(x)
+        x = self.gc2(x, adj)
+        x = self.dropout2(x)
+
+        # Combine image and GCN features
+        x = x.transpose(0, 1)
+        x = torch.matmul(feature, x)
+        return x
+
+    def activate_mc_dropout(self):
+        """Activate dropout layers during test time for MC Dropout."""
+        for module in self.modules():
+            if isinstance(module, nn.Dropout):
+                module.train()
+
+    def get_config_optim(self, lr, lrp):
+        small_lr_layers = list(map(id, self.features.parameters()))
+        large_lr_layers = filter(lambda p: id(p) not in small_lr_layers, self.parameters())
+        return [
+            {'params': self.features.parameters(), 'lr': lr * lrp},
+            {'params': large_lr_layers, 'lr': lr},
+        ]
+
 def test():
     import os
     import torch
