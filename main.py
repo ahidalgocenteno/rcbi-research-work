@@ -84,7 +84,7 @@ def main(args):
     if is_train:
         trainer.train(device)
     else:
-        trainer.validate()
+        trainer.validate(device)
 
 if __name__ == "__main__":
     args = parser.parse_args()

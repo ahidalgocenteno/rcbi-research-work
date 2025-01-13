@@ -303,8 +303,8 @@ class Trainer(object):
 
         return self.on_end_epoch(is_train=is_train)
 
-    def validate(self):
-        self.initialization(is_train=False)
+    def validate(self, device='cuda:0'):
+        self.initialization(is_train=False, device=device)
 
         map = self.run_iteration(self.val_loader, is_train=False)
 
