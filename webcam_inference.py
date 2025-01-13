@@ -95,7 +95,7 @@ def numpy_to_tensor(img_np):
     img_tensor = img_tensor.float()
     return img_tensor
 
-model_path = "checkpoint/VOC2007/MLGCN/SGD_COCO_lr_001_lrp_01_bs16_5/checkpoint_best.pth"
+model_path = "checkpoint_best.pth"
 
 model_architecture = "MLGCN"
 embeddings_path = "wordfeature"
@@ -129,36 +129,64 @@ model.eval()
 imagenet_mean = np.array([0.485, 0.456, 0.406])
 imagenet_std = np.array([0.229, 0.224, 0.225])
 
-img_path = "examples/Pierre-Person.jpg"
-img = cv2.imread(img_path)
+
+cap_camera = cv2.VideoCapture(0)
+assert cap_camera.isOpened(), "Fail to open camera"
+
+# Set the resolution to 1280x720 (16:9 aspect ratio)
+cap_camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap_camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+while cap_camera.isOpened():
+    ret_img, img_org = cap_camera.read()
+    if not ret_img:
+        break
+
+    img_rgb = cv2.cvtColor(img_org, cv2.COLOR_BGR2RGB)
+
+    img_resized_padded = resize_to_fixed_size(img_rgb, target_size=448)
+
+    # Normalize pixel values to [0, 1]
+    img_rgb = img_resized_padded.astype(np.float32) / 255.0
+
+    # Apply ImageNet normalization
+    img_normalized = (img_rgb - imagenet_mean) / imagenet_std
+
+    img_tensor = numpy_to_tensor(img_normalized)
+
+    img_tensor = img_tensor.to(device)
+
+    outputs = model(img_tensor)
+
+    # Apply the sigmoid function to the output
+    sigmoid_output = torch.sigmoid(outputs)
+
+    positions = torch.where(sigmoid_output > 0.5)[1]  # Get class indices
+
+    # Get the labels corresponding to the indices
+    predicted_labels = [VOC_LABELS[i+1] for i in positions.tolist()]
+
+    print(f"Predicted labels: {predicted_labels}")
+
+    # Add labels to the image
+    y_offset = 30  # Starting Y-coordinate for labels
+    for label in predicted_labels:
+        cv2.putText(
+            img_org,  # Image to draw on
+            f"Prediction: {label}",  # Text
+            (10, y_offset),  # Position (X, Y)
+            cv2.FONT_HERSHEY_SIMPLEX,  # Font
+            0.8,  # Font scale
+            (0, 255, 0),  # Color (Green)
+            2,  # Thickness
+            cv2.LINE_AA  # Line type
+        )
+        y_offset += 30  # Increment Y-coordinate for the next label
 
 
-img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    cv2.imshow('Prediction', img_org)
 
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
 
-img_resized_padded = resize_to_fixed_size(img_rgb, target_size=448)
-
-# Normalize pixel values to [0, 1]
-img_rgb = img_resized_padded.astype(np.float32) / 255.0
-
-# Apply ImageNet normalization
-img_normalized = (img_rgb - imagenet_mean) / imagenet_std
-
-img_tensor = numpy_to_tensor(img_normalized)
-
-img_tensor = img_tensor.to(device)
-
-outputs = model(img_tensor)
-
-# Apply the sigmoid function to the output
-sigmoid_output = torch.sigmoid(outputs)
-
-positions = torch.where(sigmoid_output > 0.5)[1]  # Get class indices
-
-# Get the labels corresponding to the indices
-predicted_labels = [VOC_LABELS[i+1] for i in positions.tolist()]
-
-print(f"Predicted labels: {predicted_labels}")
-
-
-print('hola')
+cap_camera.release()
