@@ -18,3 +18,6 @@ train-effi:
 
 train-effi-coco:
 	python main.py --data COCO2014 --model_name MLGCNEfficientNet --batch-size 8 --save_dir checkpoint/COCO2014/MLGCNEfficientNet --display
+
+train-mobilenetv3:
+	python main.py --data VOC2007 --model_name MLGCNRealTime --batch-size 16 --save_dir checkpoint/VOC2007/MLGCNRealTime --display

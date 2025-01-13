@@ -1,10 +1,11 @@
 import torch
 import torchvision
-from .mlgcn import MLGCN, MLGCNImproved, MLGCNEfficientNet
+from .mlgcn import MLGCN, MLGCNImproved, MLGCNEfficientNet, MLGCNRealTime
 
 model_dict = {'MLGCN':MLGCN,
               'MLGCNImproved':MLGCNImproved,
-              'MLGCNEfficientNet': MLGCNEfficientNet}
+              'MLGCNEfficientNet': MLGCNEfficientNet,
+              'MLGCNRealTime': MLGCNRealTime}
 
 def get_model(num_classes, args):
     if args.model_name not in model_dict:

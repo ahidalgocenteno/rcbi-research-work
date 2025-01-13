@@ -39,7 +39,7 @@ parser.add_argument('--word_feature_path', default='./wordfeature/', type=str, h
 ''' Train setting '''
 parser.add_argument('--data', metavar='NAME', help='dataset name (e.g. COCO2014, VOC2007, VOC2012, VG_100K, CoCoDataset, nuswide, mirflickr25k')
 parser.add_argument('--model_name', type=str, default='MLGCN')
-parser.add_argument('--save_dir', default='./checkpoint/COCO2014/', type=str, help='save path')
+parser.add_argument('--save_dir', default='./checkpoint/VOC2007/', type=str, help='save path')
 
 ''' Val or Tese setting '''
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true', help='evaluate model on validation set')
@@ -118,9 +118,6 @@ if __name__ == "__main__":
         args.lrp = 0.01
         args.weight_decay = 1e-4
         args.epoch_step = [10, 20]
-
-    work = 'segundo_entreno'
-    args.save_dir = './checkpoint/' + args.data + '/' +args.model_name+'/' + work
 
     if args.evaluate == True:
         args.image_size = 576
