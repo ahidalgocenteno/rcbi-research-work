@@ -21,3 +21,7 @@ train-effi-coco:
 
 train-mobilenetv3:
 	python main.py --data VOC2007 --model_name MLGCNRealTime --batch-size 16 --save_dir checkpoint/VOC2007/MLGCNRealTime --display
+
+evaluate-efficientnet-coco:
+	python main.py --data COCO2014 --model_name MLGCNEfficientNet --resume checkpoint/COCO2014/MLGCNEfficientNet/segundo_entreno/checkpoint_best.pth --evaluate --display
+
