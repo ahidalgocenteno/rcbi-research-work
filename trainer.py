@@ -88,7 +88,8 @@ class Trainer(object):
         
         if torch.cuda.is_available():
             cudnn.benchmark = True
-            self.model = torch.nn.DataParallel(self.model, device_ids=[1]).to(device)
+            device_id = int(device[-1])
+            self.model = torch.nn.DataParallel(self.model, device_ids=[device_id]).to(device)
             self.criterion = self.criterion.to(device)
             self.model.eval()
             torch.cuda.empty_cache()
