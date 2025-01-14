@@ -60,85 +60,15 @@ parser.add_argument('--resume', default='', type=str, metavar='PATH', help='path
 parser.add_argument('-d', '--display', dest='display', action='store_true', help='display mAP')
 parser.add_argument('-s','--summary_writer', action='store_true',  default=False, help="start tensorboard")
 
+''' loading of pre-trained model '''
+parser.add_argument('--pretrained', default='', type=str, metavar='PATH', help='path to latest checkpoint (default: none)')
+
 
 def main(args):
     # Set the device
     device = f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu"
     print("Using device:", torch.cuda.get_device_name(0) if device.startswith("cuda") else "CPU")
 
-    # Set up data loaders
-    train_loader, val_loader, num_classes = make_data_loader(args, is_train=not args.evaluate)
-
-    # Initialize the model
-    model = get_model(num_classes, args)
-    model.to(device)
-
-    # Initialize the trainer
-    criterion = torch.nn.MultiLabelSoftMarginLoss()
-    trainer = Trainer(model, criterion, train_loader, val_loader, args)
-
-    # Train or evaluate
-    if not args.evaluate:
-        trainer.train(device)
-
-    # save the weights of the trained model
-    model_path = os.path.join(args.save_dir, "model.pth")
-    torch.save(model.state_dict(), model_path)
-    print(f"Model saved to {model_path}")
-
-    # Enable MC Dropout for uncertainty estimation
-    model.activate_mc_dropout()
-
-    def test_with_uncertainty_per_label(model, val_loader, num_samples, num_classes):
-        model.eval()  # Set the model to evaluation mode
-        all_variances = torch.zeros(num_classes, device=device)
-        all_entropies = torch.zeros(num_classes, device=device)
-        label_counts = torch.zeros(num_classes, device=device)
-
-        with torch.no_grad():
-            for batch in tqdm(val_loader, desc="Testing Uncertainty"):
-                images, labels = batch["image"].to(device), batch["target"].to(device)
-                outputs = []
-
-                # Perform multiple stochastic forward passes
-                for _ in range(num_samples):
-                    outputs.append(torch.sigmoid(model(images)))  # Apply sigmoid for probabilities
-
-                outputs = torch.stack(outputs, dim=0)  # [num_samples, batch_size, num_classes]
-                mean_outputs = outputs.mean(dim=0)  # [batch_size, num_classes]
-                variance = outputs.var(dim=0)  # [batch_size, num_classes]
-                entropy = -torch.sum(outputs * torch.log(outputs + 1e-8), dim=0).mean(dim=0)  # [batch_size, num_classes]
-
-                # Update per-label metrics
-                for i in range(labels.size(0)):  # Iterate over the batch
-                    label_indices = labels[i] > 0  # Active labels for this sample
-                    all_variances[label_indices] += variance[i, label_indices]
-                    all_entropies[label_indices] += entropy[label_indices]
-                    label_counts[label_indices] += 1
-
-        # Normalize by the counts
-        all_variances /= label_counts
-        all_entropies /= label_counts
-
-        return all_variances, all_entropies
-
-
-    # Compute per-label uncertainty
-    variances, entropies = test_with_uncertainty_per_label(model, val_loader, args.num_samples, num_classes)
-
-    # Save per-label uncertainty metrics
-    results = {
-        "variances": variances.cpu().tolist(),
-        "entropies": entropies.cpu().tolist(),
-    }
-    with open("per_label_uncertainty.pkl", "wb") as f:
-        pickle.dump(results, f)
-
-    print("Per-label variances:", variances)
-    print("Per-label entropies:", entropies)
-
-if __name__ == "__main__":
-    args = parser.parse_args()
     if args.seed is not None:
         print ('* absolute seed: {}'.format(args.seed))
         random.seed(args.seed)
@@ -158,6 +88,85 @@ if __name__ == "__main__":
     else:
         args.iter_per_epoch = 1000 # randm
 
+    # Initialize the model
+    model = get_model(num_classes, args)
+    model.to(device)
+
+    # Initialize the trainer
+    criterion = torch.nn.MultiLabelSoftMarginLoss()
+    trainer = Trainer(model, criterion, train_loader, val_loader, args)
+
+    # Train or evaluate
+    if not args.evaluate and args.pretrained == '':
+        trainer.train(device)
+
+        # save the weights of the trained model
+        model_path = os.path.join(args.save_dir, "model.pth")
+        torch.save(model.state_dict(), model_path)
+        print(f"Model saved to {model_path}")
+
+    if args.pretrained != '':
+        checkpoint = torch.load(args.pretrained)
+        model.load_state_dict(checkpoint['state_dict'])
+        print('load pretrained model from {}'.format(args.pretrained))
+
+    # Enable MC Dropout for uncertainty estimation
+    model.activate_mc_dropout()
+
+    def test_with_uncertainty_per_label(model, val_loader, num_classes, num_samples = 10):
+        model.eval()  # Set the model to evaluation mode
+        all_variances = torch.zeros(num_classes, device=device)
+        all_entropies = torch.zeros(num_classes, device=device)
+        label_counts = torch.zeros(num_classes, device=device)
+
+        with torch.no_grad():
+            for batch in tqdm(val_loader, desc="Testing Uncertainty"):
+                images, labels = batch["image"].to(device), batch["target"].to(device)
+                outputs = []
+
+                # Perform multiple stochastic forward passes
+                for _ in range(num_samples):
+                    outputs.append(torch.sigmoid(model(images)))  # Convert to probabilities
+
+                outputs = torch.stack(outputs, dim=0)  # [num_samples, batch_size, num_classes]
+                mean_outputs = outputs.mean(dim=0)  # [batch_size, num_classes]
+                variance = mean_outputs.var(dim=1).squeeze(0)
+                entropy = -torch.sum(mean_outputs * torch.log(mean_outputs), dim=1)                
+                # Update per-label metrics
+                for i in range(labels.size(0)):  # Iterate over the batch
+                    label_indices = labels[i] > 0  # Active labels for this sample
+                    all_variances[label_indices] += variance[i]
+                    all_entropies[label_indices] += entropy[i]
+                    label_counts[label_indices] += 1
+
+        # Normalize by the counts
+        all_variances /= label_counts
+        all_entropies /= label_counts
+
+        return all_variances.cpu().numpy(), all_entropies.cpu().numpy()
+
+
+    # Compute per-label uncertainty
+    variances, entropies = test_with_uncertainty_per_label(model, val_loader, num_classes)
+
+    # Save per-label uncertainty metrics
+    results = {
+        "variances": variances,
+        "entropies": entropies,
+    }
+
+    # check if the folder uncertainty_results exists
+    if not os.path.exists("./uncertainty_results/"):
+        os.makedirs("./uncertainty_results/")
+    save_path = os.path.join("./uncertainty_results/", args.data + "_per_label_uncertainty_mcdropout.pkl")
+    with open(save_path, "wb") as f:
+        pickle.dump(results, f)
+
+    print("Per-label variances:", variances)
+    print("Per-label entropies:", entropies)
+
+if __name__ == "__main__":
+    args = parser.parse_args()
     args.data_root_dir='dataset'
     backbone = {1:'ResNet101'}
     args.backbone = backbone[1]
