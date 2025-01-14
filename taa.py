@@ -201,7 +201,7 @@ def main(args):
     # check if the folder uncertainty_results exists
     if not os.path.exists("./uncertainty_results/"):
         os.makedirs("./uncertainty_results/")
-    save_path = os.path.join("./uncertainty_results/", args.data + "_per_label_uncertainty_tta.pkl")
+    save_path = os.path.join("./uncertainty_results/", args.data + "_per_label_uncertainty_taa.pkl")
     with open(save_path, "wb") as f:
         pickle.dump(results, f)
 
