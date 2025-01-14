@@ -58,7 +58,7 @@ if __name__ == "__main__":
             18: "train",
             19: "tvmonitor"
         }
-    else:
+    elif args.data == 'COCO2014':
         labels_dict = {
             0: "person",
             1: "bicycle",
